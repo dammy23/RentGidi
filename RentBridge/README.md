@@ -1,90 +1,102 @@
+```markdown
 # RentBridge
 
-RentBridge is a comprehensive landlord-tenant platform designed for the Nigerian market. This application connects landlords and tenants, offering a seamless experience for property listings, tenant screening, secure payments, and rental management.
+RentBridge is a comprehensive landlord-tenant platform designed to simplify rental processes in Nigeria. The application connects landlords and tenants, offering features for property listings, tenant screening, secure payments, and rental management. The platform supports various user roles including landlords, tenants, and administrators, ensuring a streamlined and efficient rental experience.
 
 ## Overview
 
-RentBridge is built with a modern tech stack consisting of a ReactJS-based frontend and an Express.js backend, supported by MongoDB as the database. The platform is designed to ensure robust performance, scalability, and security.
+RentBridge is built with a modern, scalable architecture comprised of a ReactJS frontend and an Express-based backend, both of which are connected to a MongoDB database. 
 
-### Architecture and Technologies
+### Architecture and Technologies:
+- **Frontend**:
+  - Framework: ReactJS
+  - Development Server: Vite
+  - UI Component Library: shadcn-ui integrated with Tailwind CSS
+  - Routing: react-router-dom
+  - State Management: Context API
+  - API Integration: Axios
 
-- **Frontend**: 
-  - **ReactJS** with Vite dev server
-  - **Tailwind CSS** for styling
-  - **Shadcn-ui** component library
-  - **React Router** for client-side routing
-  
 - **Backend**:
-  - **Express.js**: REST API server
-  - **MongoDB** with Mongoose for database management
-  - **JWT** for authentication
+  - Framework: Express
+  - Database: MongoDB with Mongoose
+  - Authentication: JWT-based token authentication
+  - WebSockets: Socket.IO
+  - Third-party Services: Paystack for payment processing, Google Maps for location services, and Preambly for identity verification
 
-### Project Structure
-
-**Frontend (client/)**:
-- **Components**: All UI components
-- **Pages**: Defines the main page components
-- **API**: Contains mocked API requests and configurations
-- **Contexts**: Manages global state and themes
-
-**Backend (server/)**:
-- **Models**: Mongoose schemas
-- **Routes**: API endpoints
-- **Services**: Business logic and interactions with the database
-- **Utils**: Utility functions for authentication, email, and more
+Project structure:
+```plaintext
+root/
+ ├── client/                  # Frontend source code
+ ├── server/                  # Backend source code
+ ├── package.json             # NPM configuration for root project
+ ├── README.md                # Documentation file
+```
 
 ## Features
 
-The RentBridge platform offers a suite of features catering to various user roles:
-
-### Landlords
+### For Landlords:
 - Create and manage property listings
 - View and respond to tenant inquiries
-- Accept/reject rental applications
-- Generate rental agreements
+- Accept or reject rental applications
+- Generate rental agreements digitally
 - Receive holding deposits and rental payments
 
-### Tenants
+### For Tenants:
 - Search and filter available properties
-- Contact landlords through messaging
+- Contact landlords through a messaging system
 - Submit rental applications
 - Make holding deposits
 - Sign rental agreements digitally
 
-### Administrators
-- Monitor platform activity
+### For Administrators:
+- Monitor platform activities
 - Manage user accounts
 - Handle disputes and support requests
 
-Additional core features include:
-- **User Registration & Authentication**
-- **Identity Verification**
-- **Property & Listing Management**
-- **Real-Time Messaging System**
-- **Rental Application Process**
-- **Holding Deposit & Payment Flow**
-- **Rental Agreement Workflow**
-- **Dashboard Experiences**
-- **Notification System**
-- **User Profile Management**
+### Core Features Include:
+1. **User Registration & Authentication**:
+   - Email and password authentication with roles (Landlord/Tenant)
+   - Identity verification with document uploads
 
-## Getting started
+2. **Property Management**:
+   - Add and update property details
+   - Manage listings and track performance metrics
+
+3. **Search and Discovery**:
+   - Advanced search and filtering options
+   - Interactive map integration for property location
+
+4. **Messaging System**:
+   - Real-time messaging between landlords and tenants
+
+5. **Rental Applications**:
+   - Application submission and review process
+   - Employment and income verification
+
+6. **Payment Processing**:
+   - Secure holding deposit and rental payments
+   - Payment history and refund processing
+
+7. **Rental Agreement Workflow**:
+   - Automated rental agreement generation and digital signing
+
+8. **Dashboard**:
+   - Customized dashboards for landlords and tenants
+   - Real-time notifications and alert system
+
+## Getting Started
 
 ### Requirements
-
-To run RentBridge, you'll need the following:
-
-- **Node.js** (version 16.x or later)
-- **npm** (version 7.x or later)
-- **MongoDB** (running instance or access to a MongoDB cluster)
+Before you begin, ensure you have met the following requirements:
+- Node.js (version 14 or higher)
+- MongoDB (local or cloud instance)
+- A modern web browser (e.g., Chrome, Firefox)
 
 ### Quickstart
 
-Follow these steps to set up and run the project locally:
-
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-repo/rentbridge.git
+   git clone https://github.com/yourusername/rentbridge.git
    cd rentbridge
    ```
 
@@ -94,17 +106,25 @@ Follow these steps to set up and run the project locally:
    ```
 
 3. **Set up environment variables**:
-   - Create a `.env` file in the `server/` directory based on the `.env.example` file.
+   - Create a `.env` file in the `server/` directory with the following variables:
+     ```plaintext
+     MONGO_URI=your_mongo_database_url
+     JWT_SECRET=your_jwt_secret
+     PAYSTACK_SECRET_KEY=your_paystack_secret_key
+     GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+     PREAMBLY_API_KEY=your_preambly_api_key
+     ```
 
-4. **Run the application**:
+4. **Start the application**:
    ```bash
    npm run start
    ```
 
-This command will start both the frontend and backend concurrently. The frontend will be accessible at `http://localhost:5173` and the backend at `http://localhost:3000`.
+   This command will concurrently start both the frontend and backend servers. The frontend will be available at `http://localhost:5173` and the backend at `http://localhost:3000`.
 
 ### License
 
-The project is proprietary. 
-
-&copy; 2024. All rights reserved.
+```
+© 2024 RentBridge. All rights reserved.
+```
+```

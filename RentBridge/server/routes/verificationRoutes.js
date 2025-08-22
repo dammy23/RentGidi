@@ -9,7 +9,7 @@ router.post('/send-sms-code', auth.authenticateToken, async (req, res) => {
 
   try {
     const result = await VerificationService.sendSMSVerification(req.user._id);
-    
+
     res.json({
       success: true,
       message: result.message,
@@ -41,7 +41,7 @@ router.post('/verify-sms-code', auth.authenticateToken, async (req, res) => {
     }
 
     const result = await VerificationService.verifySMSCode(req.user._id, code);
-    
+
     res.json({
       success: true,
       message: result.message,
@@ -64,7 +64,7 @@ router.post('/send-email-link', auth.authenticateToken, async (req, res) => {
 
   try {
     const result = await VerificationService.sendEmailVerification(req.user._id);
-    
+
     res.json({
       success: true,
       message: result.message,
@@ -100,7 +100,7 @@ router.post('/verify-nin', auth.authenticateToken, async (req, res) => {
     if (dateOfBirth) additionalData.dateOfBirth = dateOfBirth;
 
     const result = await VerificationService.verifyNin(req.user._id, nin, additionalData);
-    
+
     res.json({
       success: true,
       message: result.message,
@@ -111,6 +111,106 @@ router.post('/verify-nin', auth.authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Verify NIN error:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Verify BVN (landlords only)
+router.post('/verify-bvn', auth.authenticateToken, async (req, res) => {
+  console.log('POST /api/verification/verify-bvn - Verify BVN');
+
+  try {
+    const { bvn, firstName, lastName, dateOfBirth } = req.body;
+
+    if (!bvn) {
+      return res.status(400).json({
+        success: false,
+        error: 'BVN is required'
+      });
+    }
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        error: 'First name and last name are required'
+      });
+    }
+
+    const result = await VerificationService.verifyBVN(req.user._id, bvn, firstName, lastName, dateOfBirth);
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: {
+        kycCompleted: result.kycCompleted,
+        verificationData: result.data
+      }
+    });
+  } catch (error) {
+    console.error('Verify BVN error:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Verify bank account (landlords only)
+router.post('/verify-account', auth.authenticateToken, async (req, res) => {
+  console.log('POST /api/verification/verify-account - Verify bank account');
+
+  try {
+    const { accountNumber, bankCode } = req.body;
+
+    if (!accountNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Account number is required'
+      });
+    }
+
+    if (!bankCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bank code is required'
+      });
+    }
+
+    const result = await VerificationService.verifyBankAccount(req.user._id, accountNumber, bankCode);
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: {
+        kycCompleted: result.kycCompleted,
+        verificationData: result.data
+      }
+    });
+  } catch (error) {
+    console.error('Verify bank account error:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get banks list
+router.get('/banks', auth.authenticateToken, async (req, res) => {
+  console.log('GET /api/verification/banks - Get banks list');
+
+  try {
+    const result = await VerificationService.getBankList();
+
+    res.json({
+      success: true,
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Get banks error:', error);
     res.status(400).json({
       success: false,
       error: error.message
@@ -133,7 +233,7 @@ router.get('/verify-email', async (req, res) => {
     }
 
     const result = await VerificationService.verifyEmailToken(token);
-    
+
     // Redirect to frontend with success message
     const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verification-success?type=email&kyc=${result.kycCompleted}`;
     res.redirect(redirectUrl);
@@ -151,7 +251,7 @@ router.get('/status', auth.authenticateToken, async (req, res) => {
 
   try {
     const result = await VerificationService.getVerificationStatus(req.user._id);
-    
+
     res.json(result);
   } catch (error) {
     console.error('Get verification status error:', error);

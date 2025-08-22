@@ -3,6 +3,7 @@ const AuditLog = require('../models/AuditLog');
 const { sendVerificationCode, generateVerificationCode, hashCode, verifyCode } = require('../utils/termiiService');
 const { sendNotificationEmail } = require('../utils/emailService');
 const ninVerifyService = require('../utils/ninVerifyService');
+const { verifyBVN, resolveAccountNumber, getBanks } = require('../utils/paystackService');
 const crypto = require('crypto');
 
 class VerificationService {
@@ -63,10 +64,10 @@ class VerificationService {
       };
     } catch (error) {
       console.error('VerificationService: Error sending SMS verification:', error);
-      
+
       // Log audit for failed attempt
       await this.logAudit(userId, 'sms_verification', 'failed', {}, error.message);
-      
+
       throw error;
     }
   }
@@ -108,15 +109,16 @@ class VerificationService {
         verificationExpiry: null
       };
 
-      // Check if all verifications are complete to mark KYC as complete
-      if (user.isEmailVerified && user.isNinVerified) {
+      // Check if KYC is complete based on role
+      const kycCompleted = this.checkKYCCompletion(user, { isPhoneVerified: true });
+      if (kycCompleted) {
         updateData.kycCompleted = true;
         console.log('VerificationService: KYC completed for user:', userId);
-        
+
         // Log KYC completion
         await this.logAudit(userId, 'kyc_completion', 'success', {
           completedAt: new Date(),
-          allVerifications: true
+          role: user.role
         });
       }
 
@@ -137,10 +139,10 @@ class VerificationService {
       };
     } catch (error) {
       console.error('VerificationService: Error verifying SMS code:', error);
-      
+
       // Log audit for failed attempt
       await this.logAudit(userId, 'sms_verification', 'failed', {}, error.message);
-      
+
       throw error;
     }
   }
@@ -206,10 +208,10 @@ class VerificationService {
       };
     } catch (error) {
       console.error('VerificationService: Error sending email verification:', error);
-      
+
       // Log audit for failed attempt
       await this.logAudit(userId, 'email_verification', 'failed', {}, error.message);
-      
+
       throw error;
     }
   }
@@ -240,15 +242,16 @@ class VerificationService {
         verificationExpiry: null
       };
 
-      // Check if all verifications are complete to mark KYC as complete
-      if (user.isPhoneVerified && user.isNinVerified) {
+      // Check if KYC is complete based on role
+      const kycCompleted = this.checkKYCCompletion(user, { isEmailVerified: true });
+      if (kycCompleted) {
         updateData.kycCompleted = true;
         console.log('VerificationService: KYC completed for user:', user._id);
-        
+
         // Log KYC completion
         await this.logAudit(user._id, 'kyc_completion', 'success', {
           completedAt: new Date(),
-          allVerifications: true
+          role: user.role
         });
       }
 
@@ -317,7 +320,7 @@ class VerificationService {
       if (additionalData.fullname && verificationResult.fullname) {
         const providedName = additionalData.fullname.toLowerCase().trim();
         const verifiedName = verificationResult.fullname.toLowerCase().trim();
-        
+
         if (!verifiedName.includes(providedName) && !providedName.includes(verifiedName)) {
           console.log('VerificationService: Name mismatch detected for user:', userId);
           // Note: You might want to handle this differently based on your requirements
@@ -340,15 +343,16 @@ class VerificationService {
         lastVerificationRequest: new Date()
       };
 
-      // Check if all verifications are complete to mark KYC as complete
-      if (user.isPhoneVerified && user.isEmailVerified) {
+      // Check if KYC is complete based on role
+      const kycCompleted = this.checkKYCCompletion(user, { isNinVerified: true });
+      if (kycCompleted) {
         updateData.kycCompleted = true;
         console.log('VerificationService: KYC completed for user:', userId);
-        
+
         // Log KYC completion
         await this.logAudit(userId, 'kyc_completion', 'success', {
           completedAt: new Date(),
-          allVerifications: true
+          role: user.role
         });
       }
 
@@ -377,12 +381,191 @@ class VerificationService {
       };
     } catch (error) {
       console.error('VerificationService: Error verifying NIN:', error);
-      
+
       // Log audit for failed attempt
       await this.logAudit(userId, 'nin_verification', 'failed', {
         nin: ninVerifyService.maskNin(nin)
       }, error.message);
-      
+
+      throw error;
+    }
+  }
+
+  static async verifyBVN(userId, bvn, firstName, lastName, dateOfBirth = null) {
+    console.log('VerificationService: Verifying BVN for user:', userId);
+
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.role !== 'landlord') {
+        throw new Error('BVN verification is only required for landlords');
+      }
+
+      if (user.isBvnVerified) {
+        throw new Error('BVN already verified');
+      }
+
+      // Check rate limiting (1 request per 60 seconds)
+      if (user.lastVerificationRequest) {
+        const timeSinceLastRequest = Date.now() - user.lastVerificationRequest.getTime();
+        if (timeSinceLastRequest < 60000) { // 60 seconds
+          const waitTime = Math.ceil((60000 - timeSinceLastRequest) / 1000);
+          throw new Error(`Please wait ${waitTime} seconds before requesting another BVN verification`);
+        }
+      }
+
+      console.log('VerificationService: Calling Paystack BVN verification for user:', userId);
+
+      // Call Paystack BVN verification
+      const verificationResult = await verifyBVN(bvn, firstName, lastName, dateOfBirth);
+
+      // Update user with BVN verification data
+      const updateData = {
+        bvn: bvn,
+        isBvnVerified: true,
+        bvnVerificationResponse: verificationResult.data,
+        lastVerificationRequest: new Date()
+      };
+
+      // Check if KYC is complete based on role
+      const kycCompleted = this.checkKYCCompletion(user, { isBvnVerified: true });
+      if (kycCompleted) {
+        updateData.kycCompleted = true;
+        console.log('VerificationService: KYC completed for user:', userId);
+
+        // Log KYC completion
+        await this.logAudit(userId, 'kyc_completion', 'success', {
+          completedAt: new Date(),
+          role: user.role
+        });
+      }
+
+      await User.findByIdAndUpdate(userId, updateData);
+
+      console.log('VerificationService: BVN verified successfully for user:', userId);
+
+      // Log audit
+      await this.logAudit(userId, 'bvn_verification', 'success', {
+        bvn: verificationResult.data.bvn,
+        firstName: verificationResult.data.firstName,
+        lastName: verificationResult.data.lastName,
+        kycCompleted: updateData.kycCompleted || false
+      });
+
+      return {
+        success: true,
+        message: 'BVN verified successfully',
+        kycCompleted: updateData.kycCompleted || false,
+        data: verificationResult.data
+      };
+    } catch (error) {
+      console.error('VerificationService: Error verifying BVN:', error);
+
+      // Log audit for failed attempt
+      await this.logAudit(userId, 'bvn_verification', 'failed', {}, error.message);
+
+      throw error;
+    }
+  }
+
+  static async verifyBankAccount(userId, accountNumber, bankCode) {
+    console.log('VerificationService: Verifying bank account for user:', userId);
+
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.role !== 'landlord') {
+        throw new Error('Bank account verification is only required for landlords');
+      }
+
+      if (user.isAccountVerified) {
+        throw new Error('Bank account already verified');
+      }
+
+      // Check rate limiting (1 request per 60 seconds)
+      if (user.lastVerificationRequest) {
+        const timeSinceLastRequest = Date.now() - user.lastVerificationRequest.getTime();
+        if (timeSinceLastRequest < 60000) { // 60 seconds
+          const waitTime = Math.ceil((60000 - timeSinceLastRequest) / 1000);
+          throw new Error(`Please wait ${waitTime} seconds before requesting another account verification`);
+        }
+      }
+
+      console.log('VerificationService: Calling Paystack account resolution for user:', userId);
+
+      // Call Paystack account resolution
+      const verificationResult = await resolveAccountNumber(accountNumber, bankCode);
+
+      // Update user with account verification data
+      const updateData = {
+        accountNumber: accountNumber,
+        bankCode: bankCode,
+        accountName: verificationResult.data.accountName,
+        isAccountVerified: true,
+        accountVerificationResponse: verificationResult.data,
+        lastVerificationRequest: new Date()
+      };
+
+      // Check if KYC is complete based on role
+      const kycCompleted = this.checkKYCCompletion(user, { isAccountVerified: true });
+      if (kycCompleted) {
+        updateData.kycCompleted = true;
+        console.log('VerificationService: KYC completed for user:', userId);
+
+        // Log KYC completion
+        await this.logAudit(userId, 'kyc_completion', 'success', {
+          completedAt: new Date(),
+          role: user.role
+        });
+      }
+
+      await User.findByIdAndUpdate(userId, updateData);
+
+      console.log('VerificationService: Bank account verified successfully for user:', userId);
+
+      // Log audit
+      await this.logAudit(userId, 'account_verification', 'success', {
+        accountNumber: verificationResult.data.accountNumber,
+        accountName: verificationResult.data.accountName,
+        bankCode: bankCode,
+        kycCompleted: updateData.kycCompleted || false
+      });
+
+      return {
+        success: true,
+        message: 'Bank account verified successfully',
+        kycCompleted: updateData.kycCompleted || false,
+        data: verificationResult.data
+      };
+    } catch (error) {
+      console.error('VerificationService: Error verifying bank account:', error);
+
+      // Log audit for failed attempt
+      await this.logAudit(userId, 'account_verification', 'failed', {}, error.message);
+
+      throw error;
+    }
+  }
+
+  static async getBankList() {
+    console.log('VerificationService: Getting bank list');
+
+    try {
+      const result = await getBanks();
+      console.log('VerificationService: Bank list retrieved successfully');
+
+      return {
+        success: true,
+        data: result.data
+      };
+    } catch (error) {
+      console.error('VerificationService: Error getting bank list:', error);
       throw error;
     }
   }
@@ -396,29 +579,73 @@ class VerificationService {
         throw new Error('User not found');
       }
 
+      const status = {
+        isPhoneVerified: user.isPhoneVerified,
+        isEmailVerified: user.isEmailVerified,
+        isNinVerified: user.isNinVerified,
+        kycCompleted: user.kycCompleted,
+        hasPhone: !!user.phone,
+        hasEmail: !!user.email,
+        hasNin: !!user.nin,
+        role: user.role,
+        ninData: user.isNinVerified ? {
+          fullname: user.ninVerificationResponse?.fullname,
+          dateOfBirth: user.ninVerificationResponse?.dateOfBirth,
+          gender: user.ninVerificationResponse?.gender,
+          stateOfOrigin: user.ninVerificationResponse?.stateOfOrigin,
+          localGovernment: user.ninVerificationResponse?.localGovernment
+        } : null
+      };
+
+      // Add landlord-specific verification status
+      if (user.role === 'landlord') {
+        status.isBvnVerified = user.isBvnVerified;
+        status.isAccountVerified = user.isAccountVerified;
+        status.hasBvn = !!user.bvn;
+        status.hasAccount = !!(user.accountNumber && user.bankCode);
+        
+        if (user.isBvnVerified) {
+          status.bvnData = {
+            firstName: user.bvnVerificationResponse?.firstName,
+            lastName: user.bvnVerificationResponse?.lastName,
+            phoneNumber: user.bvnVerificationResponse?.phoneNumber
+          };
+        }
+
+        if (user.isAccountVerified) {
+          status.accountData = {
+            accountName: user.accountName,
+            bankCode: user.bankCode
+          };
+        }
+      }
+
       return {
         success: true,
-        data: {
-          isPhoneVerified: user.isPhoneVerified,
-          isEmailVerified: user.isEmailVerified,
-          isNinVerified: user.isNinVerified,
-          kycCompleted: user.kycCompleted,
-          hasPhone: !!user.phone,
-          hasEmail: !!user.email,
-          hasNin: !!user.nin,
-          ninData: user.isNinVerified ? {
-            fullname: user.ninVerificationResponse?.fullname,
-            dateOfBirth: user.ninVerificationResponse?.dateOfBirth,
-            gender: user.ninVerificationResponse?.gender,
-            stateOfOrigin: user.ninVerificationResponse?.stateOfOrigin,
-            localGovernment: user.ninVerificationResponse?.localGovernment
-          } : null
-        }
+        data: status
       };
     } catch (error) {
       console.error('VerificationService: Error getting verification status:', error);
       throw error;
     }
+  }
+
+  static checkKYCCompletion(user, updates = {}) {
+    // Apply updates to check completion
+    const currentUser = { ...user.toObject(), ...updates };
+
+    if (currentUser.role === 'tenant') {
+      // Tenant KYC: phone + email only (removed NIN requirement)
+      return currentUser.isPhoneVerified && currentUser.isEmailVerified;
+    } else if (currentUser.role === 'landlord') {
+      // Landlord KYC: phone + email + BVN + account (removed NIN requirement)
+      return currentUser.isPhoneVerified &&
+             currentUser.isEmailVerified &&
+             currentUser.isBvnVerified &&
+             currentUser.isAccountVerified;
+    }
+
+    return false;
   }
 
   static async logAudit(userId, action, status, details = {}, errorMessage = null) {

@@ -110,6 +110,41 @@ const schema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null
   },
+  // Landlord-specific KYC Fields
+  bvn: {
+    type: String,
+    trim: true,
+    maxlength: 11
+  },
+  isBvnVerified: {
+    type: Boolean,
+    default: false
+  },
+  bvnVerificationResponse: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  bankCode: {
+    type: String,
+    trim: true
+  },
+  accountNumber: {
+    type: String,
+    trim: true,
+    maxlength: 10
+  },
+  accountName: {
+    type: String,
+    trim: true
+  },
+  isAccountVerified: {
+    type: Boolean,
+    default: false
+  },
+  accountVerificationResponse: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   kycCompleted: {
     type: Boolean,
     default: false
@@ -149,13 +184,22 @@ schema.virtual('completionPercentage').get(function() {
   const fields = ['name', 'email', 'phone', 'bio', 'address', 'occupation'];
   const completedFields = fields.filter(field => this[field] && this[field].trim().length > 0);
   const basePercentage = (completedFields.length / fields.length) * 40; // 40% for basic info
-  
+
   // KYC verification bonus (60% total)
   let kycBonus = 0;
-  if (this.isPhoneVerified) kycBonus += 20;
-  if (this.isEmailVerified) kycBonus += 20;
-  if (this.isNinVerified) kycBonus += 20;
+  if (this.isPhoneVerified) kycBonus += 15;
+  if (this.isEmailVerified) kycBonus += 15;
+  if (this.isNinVerified) kycBonus += 15;
   
+  // Additional verification for landlords
+  if (this.role === 'landlord') {
+    if (this.isBvnVerified) kycBonus += 7.5;
+    if (this.isAccountVerified) kycBonus += 7.5;
+  } else {
+    // For tenants, give full bonus if NIN is verified
+    if (this.isNinVerified) kycBonus += 15;
+  }
+
   return Math.round(basePercentage + kycBonus);
 });
 
